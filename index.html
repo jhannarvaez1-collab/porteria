@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; margin: 0; padding: 20px; }
+        #video-container { width: 100%; max-width: 400px; margin: auto; border: 4px solid #333; border-radius: 20px; overflow: hidden; }
+        canvas { width: 100%; height: auto; }
+        #resultado { margin-top: 20px; padding: 20px; border-radius: 15px; font-size: 1.2rem; font-weight: bold; }
+        .OK { background: #28a745; }
+        .DUPLICADO { background: #ffc107; color: black; }
+        .ERROR { background: #dc3545; }
+        button { background: #007bff; color: white; padding: 20px; border: none; border-radius: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>🎭 ESCÁNER DE ENTRADA</h2>
+    <button id="btnIniciar">📸 INICIAR CÁMARA</button>
+    <div id="video-container" style="display:none;"><canvas id="canvas"></canvas></div>
+    <div id="resultado">Esperando...</div>
+
+    <script>
+        // PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT
+        const WEB_APP_URL = "TU_URL_DE_APPS_SCRIPT_AQUI"; 
+
+        const video = document.createElement("video");
+        const canvasElement = document.getElementById("canvas");
+        const canvas = canvasElement.getContext("2d");
+        let scanning = false;
+
+        document.getElementById("btnIniciar").addEventListener("click", () => {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
+                scanning = true;
+                document.getElementById("btnIniciar").style.display = "none";
+                document.getElementById("video-container").style.display = "block";
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                requestAnimationFrame(tick);
+            });
+        });
+
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && scanning) {
+                canvasElement.height = video.videoHeight;
+                canvasElement.width = video.videoWidth;
+                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code) {
+                    scanning = false;
+                    enviarAGoogle(code.data);
+                }
+            }
+            if (scanning) requestAnimationFrame(tick);
+        }
+
+        function enviarAGoogle(id) {
+            document.getElementById("resultado").innerHTML = "Validando...";
+            fetch(`${WEB_APP_URL}?id=${id}`)
+                .then(r => r.json())
+                .then(res => {
+                    const div = document.getElementById("resultado");
+                    div.innerHTML = res.msg;
+                    div.className = res.status;
+                    setTimeout(() => { scanning = true; requestAnimationFrame(tick); }, 3000);
+                });
+        }
+    </script>
+</body>
+</html>
