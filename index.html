@@ -1,44 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portería Teatro</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; margin: 0; padding: 20px; }
-        #video-container { width: 100%; max-width: 400px; margin: auto; border: 4px solid #333; border-radius: 20px; overflow: hidden; }
-        canvas { width: 100%; height: auto; }
-        #resultado { margin-top: 20px; padding: 20px; border-radius: 15px; font-size: 1.2rem; font-weight: bold; }
-        .OK { background: #28a745; }
-        .DUPLICADO { background: #ffc107; color: black; }
-        .ERROR { background: #dc3545; }
-        button { background: #007bff; color: white; padding: 20px; border: none; border-radius: 15px; font-size: 1.2rem; width: 100%; cursor: pointer; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; background: #121212; color: #ffffff; margin: 0; padding: 20px; }
+        h2 { color: #f1c40f; margin-bottom: 5px; font-size: 1.6rem; }
+        p { color: #aaa; margin-top: 0; margin-bottom: 20px; }
+        #video-container { width: 100%; max-width: 400px; margin: auto; border: 4px solid #34495e; border-radius: 20px; overflow: hidden; background: #000; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+        canvas { width: 100%; height: auto; display: block; }
+        #resultado { margin-top: 25px; padding: 20px; border-radius: 15px; font-size: 1.4rem; font-weight: bold; width: 100%; max-width: 360px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+        .esperando { background: #2c3e50; color: #ecf0f1; }
+        .validando { background: #2980b9; color: #fff; }
+        .OK { background: #27ae60; color: #fff; animation: pulse 1s infinite alternate; }
+        .DUPLICADO { background: #d35400; color: #fff; }
+        .ERROR { background: #c0392b; color: #fff; }
+        button { background: #f1c40f; color: #000; padding: 20px; border: none; border-radius: 15px; font-size: 1.3rem; font-weight: bold; width: 100%; max-width: 400px; cursor: pointer; box-shadow: 0 4px 15px rgba(241,196,15,0.3); transition: 0.2s; }
+        button:active { transform: scale(0.98); }
     </style>
 </head>
 <body>
-    <h2>🎭 ESCÁNER DE ENTRADA</h2>
+    <h2>🎭 PORTERÍA</h2>
+    <p>Control de Acceso en Tiempo Real</p>
+    
     <button id="btnIniciar">📸 INICIAR CÁMARA</button>
     <div id="video-container" style="display:none;"><canvas id="canvas"></canvas></div>
-    <div id="resultado">Esperando...</div>
+    <div id="resultado" class="esperando">Escáner apagado</div>
 
     <script>
-        // PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxvAXw1qQ6xZyH4yUWvq0gURvokZCDySqImPZZzt24tS_RjNorQBZOZnCoPLOp36W8DfQ/exec"; 
+        // --- ⚠️ CONFIGURACIÓN: REEMPLAZA ESTA URL POR LA TUYA DE GOOGLE ---
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx8tny7DCytu3jM71alo4YbubpL8ntLukU07yDGf2G_0j43eI4li4R5lGqaGGe6MR5dyA/exec"; 
 
         const video = document.createElement("video");
         const canvasElement = document.getElementById("canvas");
         const canvas = canvasElement.getContext("2d");
+        const btnIniciar = document.getElementById("btnIniciar");
+        const resultadoDiv = document.getElementById("resultado");
         let scanning = false;
 
-        document.getElementById("btnIniciar").addEventListener("click", () => {
+        btnIniciar.addEventListener("click", () => {
             navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
                 scanning = true;
-                document.getElementById("btnIniciar").style.display = "none";
+                btnIniciar.style.display = "none";
                 document.getElementById("video-container").style.display = "block";
+                resultadoDiv.innerHTML = "Apunta a un código QR...";
                 video.srcObject = stream;
                 video.setAttribute("playsinline", true);
                 video.play();
                 requestAnimationFrame(tick);
+            }).catch(err => {
+                resultadoDiv.innerHTML = "❌ Error de cámara: Permiso denegado.";
+                resultadoDiv.className = "ERROR";
             });
         });
 
@@ -49,24 +63,48 @@
                 canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
                 const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
                 const code = jsQR(imageData.data, imageData.width, imageData.height);
-                if (code) {
-                    scanning = false;
-                    enviarAGoogle(code.data);
+                
+                if (code && code.data.trim() !== "") {
+                    scanning = false; // Pausa el escáner para procesar
+                    enviarAGoogle(code.data.trim());
                 }
             }
             if (scanning) requestAnimationFrame(tick);
         }
 
-        function enviarAGoogle(id) {
-            document.getElementById("resultado").innerHTML = "Validando...";
-            fetch(`${WEB_APP_URL}?id=${id}`)
-                .then(r => r.json())
-                .then(res => {
-                    const div = document.getElementById("resultado");
-                    div.innerHTML = res.msg;
-                    div.className = res.status;
-                    setTimeout(() => { scanning = true; requestAnimationFrame(tick); }, 3000);
-                });
+        function enviarAGoogle(idTicket) {
+            resultadoDiv.innerHTML = "🔍 Validando ticket: " + idTicket;
+            resultadoDiv.className = "validando";
+
+            // Se envía la petición usando la redirección correcta para Google
+            const urlFinal = `${WEB_APP_URL}?id=${encodeURIComponent(idTicket)}&_t=${new Date().getTime()}`;
+
+            fetch(urlFinal, { method: 'GET', mode: 'cors' })
+            .then(response => {
+                if (!response.ok) throw new Error();
+                return response.json();
+            })
+            .then(res => {
+                resultadoDiv.innerHTML = res.msg;
+                resultadoDiv.className = res.status;
+                
+                // Espera 3 segundos mostrando el resultado (Verde/Naranja) y reinicia la cámara
+                setTimeout(() => {
+                    resultadoDiv.innerHTML = "Apunta a un código QR...";
+                    resultadoDiv.className = "esperando";
+                    scanning = true;
+                    requestAnimationFrame(tick);
+                }, 3000);
+            })
+            .catch(err => {
+                resultadoDiv.innerHTML = "❌ Error de conexión o URL de Google inválida.";
+                resultadoDiv.className = "ERROR";
+                setTimeout(() => {
+                    resultadoDiv.innerHTML = "Intentando reiniciar...";
+                    scanning = true;
+                    requestAnimationFrame(tick);
+                }, 4000);
+            });
         }
     </script>
 </body>
